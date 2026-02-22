@@ -27,7 +27,45 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+        
+      - name: Send test email (manual run only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SMTP_HOST: "smtp-mail.outlook.com"
+          SMTP_PORT: "587"
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+        run: |
+          python - <<'PY'
+          import os, smtplib
+          from email.message import EmailMessage
 
+          host = os.environ["SMTP_HOST"]
+          port = int(os.environ["SMTP_PORT"])
+          user = os.environ["SMTP_USER"]
+          password = os.environ["SMTP_PASSWORD"]
+          mail_from = os.environ["SMTP_FROM"]
+          mail_to = [x.strip() for x in os.environ["SMTP_TO"].split(",") if x.strip()]
+
+          msg = EmailMessage()
+          msg["Subject"] = "✅ Test email from GitHub Actions (CapitolTrades setup)"
+          msg["From"] = mail_from
+          msg["To"] = ", ".join(mail_to)
+          msg.set_content(
+              "This is a test email from your GitHub Actions workflow.\n\n"
+              "If you received this, your Outlook SMTP setup works correctly."
+          )
+
+          with smtplib.SMTP(host, port, timeout=30) as server:
+              server.starttls()
+              server.login(user, password)
+              server.send_message(msg)
+
+          print("Test email sent successfully.")
+          PY
+          
       - name: Run CapitolTrades checker
         env:
           SMTP_HOST: "smtp-mail.outlook.com"
