@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-        
+
       - name: Send test email (manual run only)
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -50,7 +52,7 @@ jobs:
           mail_to = [x.strip() for x in os.environ["SMTP_TO"].split(",") if x.strip()]
 
           msg = EmailMessage()
-          msg["Subject"] = "✅ Test email from GitHub Actions (CapitolTrades setup)"
+          msg["Subject"] = "Test email from GitHub Actions (CapitolTrades setup)"
           msg["From"] = mail_from
           msg["To"] = ", ".join(mail_to)
           msg.set_content(
@@ -65,7 +67,7 @@ jobs:
 
           print("Test email sent successfully.")
           PY
-          
+
       - name: Run CapitolTrades checker
         env:
           SMTP_HOST: "smtp-mail.outlook.com"
@@ -76,17 +78,30 @@ jobs:
           SMTP_TO: ${{ secrets.SMTP_TO }}
           SMTP_USE_TLS: "true"
           SMTP_USE_SSL: "false"
-
           PAGES_TO_SCAN: "2"
           BOOTSTRAP_SKIP_EXISTING: "true"
           STATE_FILE: "seen_trade_ids.json"
         run: python capitol_trades_check_once.py
 
       - name: Commit updated state file
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add seen_trade_ids.json || true
-          git diff --cached --quiet && exit 0
+
+          # Exit cleanly if nothing changed
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+
           git commit -m "Update seen trades state [skip ci]"
-          git push
+
+          # Sync with remote in case repo changed during workflow run
+          BRANCH="${{ github.ref_name }}"
+          git fetch origin "$BRANCH"
+          git rebase "origin/$BRANCH"
+
+          git push origin HEAD:"$BRANCH"
