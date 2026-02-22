@@ -70,7 +70,7 @@ jobs:
 
       - name: Run CapitolTrades checker
         env:
-          SMTP_HOST: "smtp-mail.outlook.com"
+          SMTP_HOST: "smtp.gmail.com"
           SMTP_PORT: "587"
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
