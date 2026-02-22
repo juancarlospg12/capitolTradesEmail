@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: capitol-trades-hourly
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   check-trades:
@@ -83,7 +83,11 @@ jobs:
           STATE_FILE: "seen_trade_ids.json"
         run: python capitol_trades_check_once.py
 
-      - name: Commit updated state file
+      # IMPORTANT:
+      # Skip state commit on manual runs to avoid push conflicts while you're testing/editing.
+      # The scheduled hourly run WILL commit the state file automatically.
+      - name: Commit updated state file (scheduled runs only)
+        if: github.event_name == 'schedule'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -91,7 +95,6 @@ jobs:
 
           git add seen_trade_ids.json || true
 
-          # Exit cleanly if nothing changed
           if git diff --cached --quiet; then
             echo "No state changes to commit."
             exit 0
@@ -99,9 +102,22 @@ jobs:
 
           git commit -m "Update seen trades state [skip ci]"
 
-          # Sync with remote in case repo changed during workflow run
           BRANCH="${{ github.ref_name }}"
-          git fetch origin "$BRANCH"
-          git rebase "origin/$BRANCH"
 
-          git push origin HEAD:"$BRANCH"
+          # Retry push a few times in case repo changed mid-run
+          for i in 1 2 3; do
+            echo "Push attempt $i..."
+            git fetch origin "$BRANCH"
+            if git rebase "origin/$BRANCH"; then
+              if git push origin HEAD:"$BRANCH"; then
+                echo "Push succeeded."
+                exit 0
+              fi
+            else
+              git rebase --abort || true
+            fi
+            sleep 5
+          done
+
+          echo "Failed to push state file after retries."
+          exit 1
