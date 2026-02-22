@@ -33,7 +33,7 @@ jobs:
       - name: Send test email (manual run only)
         if: github.event_name == 'workflow_dispatch'
         env:
-          SMTP_HOST: "smtp-mail.outlook.com"
+          SMTP_HOST: "smtp.gmail.com"
           SMTP_PORT: "587"
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
