@@ -1,0 +1,54 @@
+name: CapitolTrades Hourly Alert
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # every hour at minute 17 (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capitol-trades-hourly
+  cancel-in-progress: false
+
+jobs:
+  check-trades:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run CapitolTrades checker
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+          SMTP_USE_TLS: "true"
+          SMTP_USE_SSL: "false"
+
+          PAGES_TO_SCAN: "2"
+          BOOTSTRAP_SKIP_EXISTING: "true"
+          STATE_FILE: "seen_trade_ids.json"
+        run: python capitol_trades_check_once.py
+
+      - name: Commit updated state file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen_trade_ids.json || true
+          git diff --cached --quiet && exit 0
+          git commit -m "Update seen trades state [skip ci]"
+          git push
